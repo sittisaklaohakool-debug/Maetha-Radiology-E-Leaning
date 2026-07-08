@@ -43,6 +43,10 @@ export default function App() {
   const [progressList, setProgressList] = useState<TrainingProgress[]>([]);
   const [approvalList, setApprovalList] = useState<ApprovalRecord[]>([]);
   
+  // Assessment years list state
+  const [selectedYear, setSelectedYear] = useState<string>('2569');
+  const [years, setYears] = useState<string[]>(['2569', '2568']);
+  
   // Head of Department (HOD) default settings
   const [headName, setHeadName] = useState<string>('นายสิทธิศักดิ์ เลาหกุล');
   const [headPosition, setHeadPosition] = useState<string>('หัวหน้ากลุ่มงานรังสีเทคนิค โรงพยาบาลแม่ทา');
@@ -115,12 +119,18 @@ export default function App() {
           setHeadSignature(data.headSignature);
           localStorage.setItem('maetha_head_sig', data.headSignature);
         }
+        if (data.yearsList && Array.isArray(data.yearsList)) {
+          setYears(data.yearsList);
+        } else {
+          setYears(['2569', '2568']);
+        }
       } else {
         // First-time seed of HOD settings if not in DB
         const initialSettings = {
           headName: localStorage.getItem('maetha_head_name') || 'นายสิทธิศักดิ์ เลาหกุล',
           headPosition: localStorage.getItem('maetha_head_pos') || 'หัวหน้ากลุ่มงานรังสีเทคนิค โรงพยาบาลแม่ทา',
-          headSignature: localStorage.getItem('maetha_head_sig') || ''
+          headSignature: localStorage.getItem('maetha_head_sig') || '',
+          yearsList: ['2569', '2568']
         };
         setDoc(doc(db, 'settings', 'global_settings'), initialSettings)
           .catch(err => console.error("Error setting initial settings:", err));
@@ -190,7 +200,9 @@ export default function App() {
 
         const batch = writeBatch(db);
         initialProg.forEach(item => {
-          batch.set(doc(db, 'progress', `${item.staffId}_${item.topicId}`), item);
+          const withYear = { ...item, year: '2569' };
+          batch.set(doc(db, 'progress', `${item.staffId}_${item.topicId}_2569`), withYear);
+          batch.set(doc(db, 'progress', `${item.staffId}_${item.topicId}`), withYear);
         });
         batch.commit()
           .then(() => {
@@ -225,7 +237,9 @@ export default function App() {
 
         const batch = writeBatch(db);
         initialApp.forEach(item => {
-          batch.set(doc(db, 'approvals', `${item.staffId}_${item.topicId}`), item);
+          const withYear = { ...item, year: '2569' };
+          batch.set(doc(db, 'approvals', `${item.staffId}_${item.topicId}_2569`), withYear);
+          batch.set(doc(db, 'approvals', `${item.staffId}_${item.topicId}`), withYear);
         });
         batch.commit()
           .then(() => {
@@ -395,7 +409,7 @@ export default function App() {
       
       if (activeStaffId) {
         const existingIdx = progressList.findIndex(
-          p => p.staffId === activeStaffId && p.topicId === topic.id
+          p => p.staffId === activeStaffId && p.topicId === topic.id && (p.year || '2569') === selectedYear
         );
 
         const newProgress: TrainingProgress = {
@@ -406,7 +420,8 @@ export default function App() {
           maxScore: topic.questions.length,
           passed: true,
           completedAt: new Date().toISOString(),
-          staffSignature: tempStaffSignature || ''
+          staffSignature: tempStaffSignature || '',
+          year: selectedYear
         };
 
         const existingItem = existingIdx >= 0 ? progressList[existingIdx] : null;
@@ -414,7 +429,7 @@ export default function App() {
           newProgress.staffSignature = existingItem.staffSignature;
         }
         
-        setDoc(doc(db, 'progress', `${activeStaffId}_${topic.id}`), newProgress)
+        setDoc(doc(db, 'progress', `${activeStaffId}_${topic.id}_${selectedYear}`), newProgress)
           .catch(err => console.error("Error saving progress:", err));
       }
     } else {
@@ -449,11 +464,12 @@ export default function App() {
       maxScore: currentTopic.questions.length,
       passed: true,
       completedAt: new Date().toISOString(),
-      staffSignature: tempStaffSignature || ''
+      staffSignature: tempStaffSignature || '',
+      year: selectedYear
     };
 
     try {
-      await setDoc(doc(db, 'progress', `${activeStaffId}_${selectedTopicId}`), newProgress);
+      await setDoc(doc(db, 'progress', `${activeStaffId}_${selectedTopicId}_${selectedYear}`), newProgress);
       triggerAlert('บันทึกสำเร็จ', 'บันทึกคะแนนและลายมือชื่อของท่านลงเวชระเบียนแฟ้มผลการสอบเรียบร้อยแล้วค่ะ! ท่านสามารถตรวจสอบแฟ้มสะสมงานบุคคล (Staff Portfolio) ทันที');
       // Reset temp signature
       setTempStaffSignature('');
@@ -506,12 +522,13 @@ export default function App() {
       headName,
       headPosition,
       headSignature: headSignature,
-      approvedAt: new Date().toISOString()
+      approvedAt: new Date().toISOString(),
+      year: selectedYear
     };
 
     try {
-      await setDoc(doc(db, 'approvals', `${staffId}_${topicId}`), newApproval);
-      triggerAlert('อนุมัติเกียรติบัตรสำเร็จ', 'ระบบทำการอนุมัติผลการเรียน ออกหนังสือรับรองเกียรติบัตรออนไลน์ และลงลายเซ็นสดของหัวหน้างานเรียบร้อย');
+      await setDoc(doc(db, 'approvals', `${staffId}_${topicId}_${selectedYear}`), newApproval);
+      triggerAlert('อนุมัติเกียรติบัตรสำเร็จ', 'ระบบทำการอนุมัติผลการเรียน ออกหนังสือรับรองเกียรติบัตรออนไลน์ และลงลายเซ็นสด of หัวหน้างานเรียบร้อย');
     } catch (err) {
       console.error('Error approving certificate:', err);
       triggerAlert('เกิดข้อผิดพลาด', 'ไม่สามารถอนุมัติได้');
@@ -525,6 +542,7 @@ export default function App() {
       'คุณต้องการยกเลิกการลงนามลายเซ็นรับรองเกียรติบัตรใบนี้ใช่หรือไม่?',
       async () => {
         try {
+          await deleteDoc(doc(db, 'approvals', `${staffId}_${topicId}_${selectedYear}`));
           await deleteDoc(doc(db, 'approvals', `${staffId}_${topicId}`));
         } catch (err) {
           console.error('Error revoking approval:', err);
@@ -549,12 +567,16 @@ export default function App() {
           
           // 2. Overwrite 10 progress records
           DEFAULT_PROGRESS_LIST.forEach(item => {
-            batch.set(doc(db, 'progress', `${item.staffId}_${item.topicId}`), item);
+            const withYear = { ...item, year: '2569' };
+            batch.set(doc(db, 'progress', `${item.staffId}_${item.topicId}_2569`), withYear);
+            batch.set(doc(db, 'progress', `${item.staffId}_${item.topicId}`), withYear);
           });
 
           // 3. Overwrite 10 approval records
           DEFAULT_APPROVAL_LIST.forEach(item => {
-            batch.set(doc(db, 'approvals', `${item.staffId}_${item.topicId}`), item);
+            const withYear = { ...item, year: '2569' };
+            batch.set(doc(db, 'approvals', `${item.staffId}_${item.topicId}_2569`), withYear);
+            batch.set(doc(db, 'approvals', `${item.staffId}_${item.topicId}`), withYear);
           });
           
           await batch.commit();
@@ -567,23 +589,94 @@ export default function App() {
     );
   };
 
+  // Add a new assessment year (automatically increments from max)
+  const handleAddNewYear = async () => {
+    const numericYears = years.map(y => parseInt(y)).filter(n => !isNaN(n));
+    const maxYear = numericYears.length > 0 ? Math.max(...numericYears) : 2569;
+    const nextYear = String(maxYear + 1);
+
+    const updatedYears = [...years, nextYear].sort((a, b) => parseInt(b) - parseInt(a));
+
+    try {
+      await setDoc(doc(db, 'settings', 'global_settings'), {
+        yearsList: updatedYears
+      }, { merge: true });
+      setYears(updatedYears);
+      setSelectedYear(nextYear);
+      triggerAlert('เพิ่มปีประเมินสำเร็จ', `ระบบได้เปิดประเมินรอบปีงบประมาณรอบใหม่: "ปี ${nextYear}" เรียบร้อยแล้วค่ะ! ท่านสามารถเริ่มบันทึกข้อมูลการเรียนและประเมินของปีใหม่นี้ได้ทันที`);
+    } catch (err) {
+      console.error('Error adding new year:', err);
+      triggerAlert('เกิดข้อผิดพลาด', 'ไม่สามารถเพิ่มปีงบประมาณการประเมินใหม่ได้');
+    }
+  };
+
+  // Delete all reports, progress and approvals for the selected year
+  const handleDeleteYearData = () => {
+    triggerConfirm(
+      `ยืนยันการลบรายงานและข้อมูลประเมินปี ${selectedYear}`,
+      `คุณต้องการล้างคะแนนประเมิน, ลายมือชื่อ, และเกียรติบัตรทั้งหมดของ "ปี ${selectedYear}" ใช่หรือไม่? ข้อมูลของปีนี้จะถูกลบออกแบบถาวร (รายชื่อเจ้าหน้าที่จะยังอยู่ปกติ แต่คะแนนประเมินของปี ${selectedYear} จะถูกล้างทั้งหมด)`,
+      async () => {
+        try {
+          const batch = writeBatch(db);
+          
+          // Filter progress of selected year
+          const progressToDelete = progressList.filter(p => (p.year || '2569') === selectedYear);
+          progressToDelete.forEach(p => {
+            const pYear = p.year || '2569';
+            batch.delete(doc(db, 'progress', `${p.staffId}_${p.topicId}_${pYear}`));
+            batch.delete(doc(db, 'progress', `${p.staffId}_${p.topicId}`));
+          });
+
+          // Filter approvals of selected year
+          const approvalsToDelete = approvalList.filter(a => (a.year || '2569') === selectedYear);
+          approvalsToDelete.forEach(a => {
+            const aYear = a.year || '2569';
+            batch.delete(doc(db, 'approvals', `${a.staffId}_${a.topicId}_${aYear}`));
+            batch.delete(doc(db, 'approvals', `${a.staffId}_${a.topicId}`));
+          });
+
+          // Optionally remove the year itself if we have more than 1 year remaining
+          let updatedYears = years;
+          if (years.length > 1) {
+            updatedYears = years.filter(y => y !== selectedYear);
+            batch.set(doc(db, 'settings', 'global_settings'), {
+              yearsList: updatedYears
+            }, { merge: true });
+            setYears(updatedYears);
+            setSelectedYear(updatedYears[0]);
+          }
+
+          await batch.commit();
+          triggerAlert('ลบข้อมูลสำเร็จ', `ระบบได้ล้างทำความสะอาดประวัติประเมินและเกียรติบัตรทั้งหมดของ "ปี ${selectedYear}" เรียบร้อยแล้วค่ะ!`);
+        } catch (err) {
+          console.error('Error deleting year data:', err);
+          triggerAlert('เกิดข้อผิดพลาด', 'ไม่สามารถลบข้อมูลการประเมินประจำปีนี้ได้สำเร็จ');
+        }
+      }
+    );
+  };
+
+  // Filter progress and approvals for the selected year
+  const filteredProgressList = progressList.filter(p => (p.year || '2569') === selectedYear);
+  const filteredApprovalList = approvalList.filter(a => (a.year || '2569') === selectedYear);
+
   // Get active staff metadata
   const activeStaff = staffList.find(s => s.id === activeStaffId);
   const currentTopic = TOPICS_DATA.find(t => t.id === selectedTopicId);
   const currentProgress = progressList.find(
-    p => p.staffId === activeStaffId && p.topicId === selectedTopicId
+    p => p.staffId === activeStaffId && p.topicId === selectedTopicId && (p.year || '2569') === selectedYear
   );
   const currentApproval = approvalList.find(
-    a => a.staffId === activeStaffId && a.topicId === selectedTopicId
+    a => a.staffId === activeStaffId && a.topicId === selectedTopicId && (a.year || '2569') === selectedYear
   );
 
   // Stats calculation
   const totalStaffCount = staffList.length;
-  const countCompletedTopic = (topicId: string) => progressList.filter(p => p.topicId === topicId && p.status === 'completed').length;
-  const totalCertificatesApproved = approvalList.length;
+  const countCompletedTopic = (topicId: string) => filteredProgressList.filter(p => p.topicId === topicId && p.status === 'completed').length;
+  const totalCertificatesApproved = filteredApprovalList.length;
   
   // Completed courses count for current staff
-  const staffCompletedCount = progressList.filter(p => p.staffId === activeStaffId && p.status === 'completed').length;
+  const staffCompletedCount = filteredProgressList.filter(p => p.staffId === activeStaffId && p.status === 'completed').length;
 
   return (
     <div className="min-h-screen bg-cream flex flex-col antialiased font-sans">
@@ -638,13 +731,59 @@ export default function App() {
               <Users className="w-3.5 h-3.5 text-slate-900" /> บุคลากรรวม: <strong>{totalStaffCount}</strong> ท่าน
             </span>
             <span className="bg-[#F3F2F0] px-2.5 py-1 border border-black flex items-center gap-1">
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" /> อบรมสำเร็จ: <strong>{progressList.filter(p => p.status === 'completed').length}</strong> คอร์ส
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" /> อบรมสำเร็จ: <strong>{filteredProgressList.filter(p => p.status === 'completed').length}</strong> คอร์ส
             </span>
             <button
               onClick={() => setShowExportModal(true)}
               className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 border border-black flex items-center gap-1 cursor-pointer transition-colors font-sans font-bold text-xs"
             >
               ☁️ อัปเดตข้อมูลขึ้น GitHub
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* ASSESSMENT YEAR BAR */}
+      <section className="bg-[#F8F6F2] border-b-2 border-black py-3 no-print">
+        <div className="max-w-7xl mx-auto px-4 md:px-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="font-extrabold text-[#1A1A1A] font-sans uppercase tracking-wider text-[11px] flex items-center gap-1">
+              🗓️ รอบประเมินประจำปีงบประมาณ:
+            </span>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {years.map(yr => (
+                <button
+                  id={`year-btn-${yr}`}
+                  key={yr}
+                  onClick={() => setSelectedYear(yr)}
+                  className={`px-3 py-1.5 text-xs font-bold border transition-all cursor-pointer ${
+                    selectedYear === yr
+                      ? 'bg-[#1A1A1A] text-white border-black scale-102 font-extrabold'
+                      : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                  }`}
+                >
+                  พ.ศ. {yr}
+                </button>
+              ))}
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <button
+              id="add-year-btn"
+              onClick={handleAddNewYear}
+              className="px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-900 text-xs font-bold border border-black transition-colors cursor-pointer flex items-center gap-1"
+            >
+              ➕ เปิดรอบปีประเมินใหม่
+            </button>
+            <button
+              id="delete-year-btn"
+              onClick={handleDeleteYearData}
+              className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold border border-rose-300 transition-colors cursor-pointer flex items-center gap-1"
+              title={`ลบประวัติการประเมินประจำปี ${selectedYear} ทั้งหมด`}
+            >
+              <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+              ลบรายงานปี {selectedYear}
             </button>
           </div>
         </div>
@@ -730,7 +869,7 @@ export default function App() {
                 ) : (
                   staffList.map(s => {
                     const isSelected = s.id === activeStaffId;
-                    const compCount = progressList.filter(p => p.staffId === s.id && p.status === 'completed').length;
+                    const compCount = filteredProgressList.filter(p => p.staffId === s.id && p.status === 'completed').length;
                     
                     return (
                       <div
@@ -845,7 +984,7 @@ export default function App() {
               <div className="space-y-1.5">
                 {TOPICS_DATA.map((t, idx) => {
                   const isSelected = t.id === selectedTopicId;
-                  const stat = progressList.find(p => p.staffId === activeStaffId && p.topicId === t.id);
+                  const stat = filteredProgressList.find(p => p.staffId === activeStaffId && p.topicId === t.id);
                   const inCompl = stat?.status === 'completed';
                   
                   return (
@@ -1113,6 +1252,7 @@ export default function App() {
                 staff={activeStaff}
                 topics={TOPICS_DATA}
                 progressList={progressList}
+                selectedYear={selectedYear}
               />
             )}
 
@@ -1139,17 +1279,17 @@ export default function App() {
                     <p className="text-[10px] text-slate-500 font-serif">ลงทะเบียนในหน่วยงานรังสีเทคนิคแม่ทา</p>
                   </div>
                   <div className="bg-[#F3F2F0] border border-black p-5 rounded-none space-y-1">
-                    <p className="text-slate-600 text-[10px] font-extrabold uppercase tracking-wider font-mono">คอร์สเรียนสำเร็จสะสม</p>
+                    <p className="text-slate-600 text-[10px] font-extrabold uppercase tracking-wider font-mono">คอร์สเรียนสำเร็จประจำปี {selectedYear}</p>
                     <p className="text-3xl font-serif font-extrabold text-[#1A1A1A] leading-none">
-                      {progressList.filter(p => p.status === 'completed').length} ครั้ง
+                      {filteredProgressList.filter(p => p.status === 'completed').length} ครั้ง
                     </p>
                     <p className="text-[10px] text-slate-500 font-serif">จากวิชาบทเรียนรังสีวิทยา {TOPICS_DATA.length} หลักสูตร</p>
                   </div>
                   <div className="bg-[#F3F2F0] border border-black p-5 rounded-none space-y-1">
-                    <p className="text-slate-600 text-[10px] font-extrabold uppercase tracking-wider font-mono">ความสำเร็จเฉลี่ยของหน่วยงาน</p>
+                    <p className="text-slate-600 text-[10px] font-extrabold uppercase tracking-wider font-mono">ความสำเร็จเฉลี่ยของหน่วยงาน (ปี {selectedYear})</p>
                     <p className="text-3xl font-serif font-extrabold text-blue-900 leading-none">
                       {totalStaffCount > 0 
-                        ? Math.round((progressList.filter(p => p.status === 'completed').length / (totalStaffCount * TOPICS_DATA.length)) * 100) 
+                        ? Math.round((filteredProgressList.filter(p => p.status === 'completed').length / (totalStaffCount * TOPICS_DATA.length)) * 100) 
                         : 0}%
                     </p>
                     <p className="text-[10px] text-slate-500 font-serif">สัดส่วนเจ้าหน้าที่ผ่านครบเกณฑ์เฉลี่ย</p>
@@ -1235,8 +1375,8 @@ export default function App() {
                                 <span className="block text-[10px] text-slate-500">{s.position}</span>
                               </td>
                               {TOPICS_DATA.map(t => {
-                                const prog = progressList.find(p => p.staffId === s.id && p.topicId === t.id);
-                                const isApproved = approvalList.some(a => a.staffId === s.id && a.topicId === t.id);
+                                const prog = filteredProgressList.find(p => p.staffId === s.id && p.topicId === t.id);
+                                const isApproved = filteredApprovalList.some(a => a.staffId === s.id && a.topicId === t.id);
                                 
                                 return (
                                   <td key={t.id} className="px-2 py-3 text-center border-r border-slate-200">
@@ -1245,11 +1385,15 @@ export default function App() {
                                         <span className="text-emerald-900 font-bold bg-emerald-50 text-[9px] px-1.5 py-0.5 border border-emerald-400">
                                           {prog.quizScore}/{prog.maxScore || 3}
                                         </span>
-                                        {prog.staffSignature && (
+                                        {isApproved ? (
+                                          <span className="text-purple-900 font-bold text-[8px] bg-purple-50 px-1 border border-purple-300">
+                                            APPROVED
+                                          </span>
+                                        ) : prog.staffSignature ? (
                                           <span className="text-blue-900 font-bold text-[8px] bg-blue-50 px-1 border border-blue-300">
                                             SIGNED
                                           </span>
-                                        )}
+                                        ) : null}
                                       </div>
                                     ) : (
                                       <span className="text-slate-400 text-xs">-</span>

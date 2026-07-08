@@ -32,6 +32,7 @@ export interface TrainingProgress {
   passed?: boolean;
   completedAt?: string;
   staffSignature?: string; // base64 canvas signature
+  year?: string;
 }
 
 export interface ApprovalRecord {
@@ -41,4 +42,5 @@ export interface ApprovalRecord {
   headPosition: string;
   headSignature?: string; // base64 signature
   approvedAt?: string;
+  year?: string;
 }

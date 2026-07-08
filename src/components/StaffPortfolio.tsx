@@ -7,9 +7,10 @@ interface StaffPortfolioProps {
   staff: Staff;
   topics: Topic[];
   progressList: TrainingProgress[];
+  selectedYear: string;
 }
 
-export function StaffPortfolio({ staff, topics, progressList }: StaffPortfolioProps) {
+export function StaffPortfolio({ staff, topics, progressList, selectedYear }: StaffPortfolioProps) {
   const portfolioRef = useRef<HTMLDivElement | null>(null);
 
   // Filter progress for this active staff
@@ -255,7 +256,7 @@ export function StaffPortfolio({ staff, topics, progressList }: StaffPortfolioPr
                 <MaethaLogo size={60} />
               </div>
               <div className="print-title-area flex-1">
-                <h1 className="text-xl md:text-2xl font-serif font-black text-blue-900 tracking-tight">แฟ้มผลการเรียนรู้เเละประเมินสมรรถนะเทคนิคส่วนบุคคล</h1>
+                <h1 className="text-xl md:text-2xl font-serif font-black text-blue-900 tracking-tight">แฟ้มผลการเรียนรู้เเละประเมินสมรรถนะเทคนิคส่วนบุคคล (ปี {selectedYear})</h1>
                 <p className="text-xs text-slate-600 font-serif">กลุ่มงานรังสีวิทยาและการพยาบาล โรงพยาบาลแม่ทา อำเภอแม่ทา จังหวัดลำพูน</p>
               </div>
             </div>
